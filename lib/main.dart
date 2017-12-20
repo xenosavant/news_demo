@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
 import 'dart:math';
 import 'platform_adaptive.dart';
@@ -6,6 +7,7 @@ import 'package:flutter/foundation.dart' show defaultTargetPlatform, required;
 import 'models.dart';
 import 'package:flutter/services.dart';
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() => runApp(new MyApp());
 
@@ -29,8 +31,29 @@ class ArticleListItem extends StatelessWidget
 
   @override
   Widget build(BuildContext context) {
-    return new ListTile(
-      title: new Text(article.title)
+    return new GestureDetector(
+        onTap: () async {
+          if (await canLaunch(article.url)) {
+          await launch(article.url, forceSafariVC: false, forceWebView: false);
+          }
+        },
+        child: new Card(
+          child: new Container(
+              margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+              child: new Column(
+                children: <Widget>[
+                  article.imageUrl != null ? new Image.network(article.imageUrl,
+                      fit: BoxFit.fitWidth) : new Row(),
+                  new Container(
+                        margin: const EdgeInsets.symmetric(vertical: 8.0),
+                        child: new ListTile( title: new Text(article.title),
+                            subtitle: new Text(article.description)
+                    )
+                  )
+                ]
+              )
+          )
+        )
     );
   }
 }
@@ -79,12 +102,12 @@ class _MyHomePageState extends State<MyHomePage> {
   _buildArticleList() async
   {
     var httpClient = createHttpClient();
-    var response = await httpClient.get("https://newsapi.org/v2/everything?q=Breitbart&from=2017-11-30&sortBy=popularity&apiKey=37dc4a19b1ac42318fb62fc1ec05a125");
+    var response = await httpClient.get("https://newsapi.org/v2/top-headlines?sources=google-news&from=2017-11-30&sortBy=popularity&apiKey=37dc4a19b1ac42318fb62fc1ec05a125");
     Map data = JSON.decode(response.body);
     List<ArticleListItem> newArticles = new List<ArticleListItem>();
     for (var article in data["articles"] )
     {
-      newArticles.add(new ArticleListItem(new Article(title:article["title"])));
+      newArticles.add(new ArticleListItem(new Article(title:article["title"], imageUrl: article["urlToImage"], description: article["description"], url: article["url"])));
     }
     setState(() {
       articles = newArticles;
