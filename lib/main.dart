@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
-import 'dart:math';
 import 'platform_adaptive.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, required;
 import 'models.dart';
 import 'package:flutter/services.dart';
 import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() => runApp(new MyApp());
@@ -33,9 +33,7 @@ class ArticleListItem extends StatelessWidget
   Widget build(BuildContext context) {
     return new GestureDetector(
         onTap: () async {
-          if (await canLaunch(article.url)) {
           await launch(article.url, forceSafariVC: false, forceWebView: false);
-          }
         },
         child: new Card(
           child: new Container(
@@ -92,26 +90,21 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+  Future<http.Response> _articlesFuture;
   List<ArticleListItem> articles = new List<ArticleListItem>();
 
-  void mapToArticle(articles)
-  {
-
+  @override
+  initState(){
+    super.initState();
+    _articlesFuture = http.get(
+        "https://newsapi.org/v2/top-headlines?sources=google-news&from=2017-11-30&sortBy=popularity&apiKey=37dc4a19b1ac42318fb62fc1ec05a125");
   }
 
-  _buildArticleList() async
-  {
-    var httpClient = createHttpClient();
-    var response = await httpClient.get("https://newsapi.org/v2/top-headlines?sources=google-news&from=2017-11-30&sortBy=popularity&apiKey=37dc4a19b1ac42318fb62fc1ec05a125");
-    Map data = JSON.decode(response.body);
-    List<ArticleListItem> newArticles = new List<ArticleListItem>();
-    for (var article in data["articles"] )
-    {
-      newArticles.add(new ArticleListItem(new Article(title:article["title"], imageUrl: article["urlToImage"], description: article["description"], url: article["url"])));
-    }
-    setState(() {
-      articles = newArticles;
-    });
+  Future<Null> _refresh() {
+    return http.get(
+        "https://newsapi.org/v2/top-headlines?sources=google-news&from=2017-11-30&sortBy=popularity&apiKey=37dc4a19b1ac42318fb62fc1ec05a125")
+    .then((response) =>
+        setState(() { articles = parseJSON(response);})).whenComplete(() => { });
   }
 
   @override
@@ -128,12 +121,50 @@ class _MyHomePageState extends State<MyHomePage> {
         // the App.build method, and use it to set our appbar title.
         title: new Text(widget.title),
       ),
-      body: new ArticleList(articles),
-        floatingActionButton: new FloatingActionButton(
-          onPressed: _buildArticleList,
-          tooltip: 'Refresh',
-          child: new Icon(Icons.refresh)
-    ));
+      body: new RefreshIndicator(
+          onRefresh: _refresh,
+          child: new FutureBuilder(
+            future: _articlesFuture,
+            builder: (BuildContext context, AsyncSnapshot<http.Response> response) {
+            if (!response.hasData) {
+              return const Center(
+                child: const Text("Loading...")
+              );
+            }
+            else if (response.data.statusCode != 200){
+                return const Center(
+                  child: const Text("An Error ocurred...")
+                );
+            }
+            else {
+              articles = parseJSON(response.data);
+              return new ArticleList(articles);
+            }
+          })
+      )
+    );
+    }
   }
-}
+
+  List<ArticleListItem> parseJSON(http.Response response)
+  {
+    var articles = new List<ArticleListItem>();
+    Map data = JSON.decode(response.body);
+    List<dynamic> parsedItems = data["articles"];
+    for (var article in parsedItems) {
+      var imageUrl = article["urlToImage"];
+      if (!imageUrl.startsWith("http")) {
+        imageUrl = null;
+      }
+      var articleUrl = article["url"];
+      articles.add(new ArticleListItem(
+          new Article(
+              title: article["title"],
+              imageUrl: imageUrl,
+              description: article["description"],
+              url: articleUrl))
+      );
+    }
+    return articles;
+  }
 

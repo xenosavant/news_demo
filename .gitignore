@@ -9,3 +9,5 @@ packages
 pubspec.lock
 .flutter-plugins
 .vscode
+.gradle
+gradle/
