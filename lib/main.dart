@@ -96,15 +96,19 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   initState(){
     super.initState();
-    _articlesFuture = http.get(
-        "https://newsapi.org/v2/top-headlines?sources=google-news&from=2017-11-30&sortBy=popularity&apiKey=37dc4a19b1ac42318fb62fc1ec05a125");
+    apiCall().then((response) =>
+        setState(() { articles = parseJSON(response);}));;
   }
 
   Future<Null> _refresh() {
-    return http.get(
-        "https://newsapi.org/v2/top-headlines?sources=google-news&from=2017-11-30&sortBy=popularity&apiKey=37dc4a19b1ac42318fb62fc1ec05a125")
-    .then((response) =>
+    return apiCall().then((response) =>
         setState(() { articles = parseJSON(response);})).whenComplete(() => { });
+  }
+
+  Future<http.Response> apiCall()
+  {
+    return http.get(
+        "https://newsapi.org/v2/top-headlines?sources=google-news&from=2017-11-30&sortBy=popularity&apiKey=37dc4a19b1ac42318fb62fc1ec05a125");
   }
 
   @override
@@ -123,26 +127,9 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
       body: new RefreshIndicator(
           onRefresh: _refresh,
-          child: new FutureBuilder(
-            future: _articlesFuture,
-            builder: (BuildContext context, AsyncSnapshot<http.Response> response) {
-            if (!response.hasData) {
-              return const Center(
-                child: const Text("Loading...")
-              );
-            }
-            else if (response.data.statusCode != 200){
-                return const Center(
-                  child: const Text("An Error ocurred...")
-                );
-            }
-            else {
-              articles = parseJSON(response.data);
-              return new ArticleList(articles);
-            }
-          })
-      )
-    );
+          child: new ArticleList(articles)
+          )
+      );
     }
   }
 
